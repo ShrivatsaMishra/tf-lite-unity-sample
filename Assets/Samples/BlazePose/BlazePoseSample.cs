@@ -12,6 +12,10 @@ using UnityEngine.UI;
 [RequireComponent(typeof(WebCamInput))]
 public sealed class BlazePoseSample : MonoBehaviour
 {
+    [SerializeField]
+    public GameObject HelpPanel;
+    [SerializeField]
+    public SpawnObjects spawn;
 
     [SerializeField, FilePopup("*.tflite")]
     private string poseDetectionModelFile = "coco_ssd_mobilenet_quant.tflite";
@@ -19,8 +23,8 @@ public sealed class BlazePoseSample : MonoBehaviour
     private string poseLandmarkModelFile = "coco_ssd_mobilenet_quant.tflite";
     [SerializeField]
     private RawImage cameraView = null;
-    [SerializeField]
-    private RawImage debugView = null;
+    // [SerializeField]
+    // private RawImage debugView = null;
     [SerializeField]
     private Canvas canvas = null;
     [SerializeField]
@@ -43,6 +47,10 @@ public sealed class BlazePoseSample : MonoBehaviour
     private CancellationToken cancellationToken;
 
     private bool NeedsDetectionUpdate => poseResult == null || poseResult.score < 0.5f;
+
+    public GameObject shield;
+    [SerializeField]
+    public float pivot;
 
     private void Start()
     {
@@ -91,12 +99,18 @@ public sealed class BlazePoseSample : MonoBehaviour
 
         if (landmarkResult != null && landmarkResult.score > 0.2f)
         {
+            HelpPanel.SetActive(false);
+            spawn.mode=0;
             DrawCropMatrix(poseLandmark.CropMatrix);
             DrawViewportLandmarks(landmarkResult.viewportLandmarks);
             if (landmarkOptions.useWorldLandmarks)
             {
                 DrawWorldLandmarks(landmarkResult.worldLandmarks);
             }
+        }
+        else {
+            HelpPanel.SetActive(true);
+            spawn.mode = 1;
         }
     }
 
@@ -134,6 +148,12 @@ public sealed class BlazePoseSample : MonoBehaviour
 
     private void DrawViewportLandmarks(Vector4[] landmarks)
     {
+        Vector3 min = rtCorners[0];
+        Vector3 max = rtCorners[2];
+        pivot = (min.x+max.x)/2;
+        Debug.Log(min);
+        Debug.Log(max);
+        
         draw.color = Color.blue;
 
         float zScale = 1;
@@ -168,6 +188,7 @@ public sealed class BlazePoseSample : MonoBehaviour
             Vector4 p = viewportLandmarks[i];
             if (p.w > visibilityThreshold)
             {
+                p.x+=pivot;
                 draw.Cube(p, 0.2f);
             }
         }
@@ -178,10 +199,16 @@ public sealed class BlazePoseSample : MonoBehaviour
             var b = viewportLandmarks[connections[i + 1]];
             if (a.w > visibilityThreshold || b.w > visibilityThreshold)
             {
+                a.x+=pivot;
+                b.x+=pivot;
                 draw.Line3D(a, b, 0.05f);
             }
         }
         draw.Apply();
+        Vector3 rHand = viewportLandmarks[20];
+        rHand.x+=pivot;
+        shield.transform.position = rHand;
+        // Debug.Log(viewportLandmarks[20]);
     }
 
     private void DrawWorldLandmarks(Vector4[] landmarks)
@@ -226,7 +253,7 @@ public sealed class BlazePoseSample : MonoBehaviour
             return;
         }
         poseLandmark.Invoke(texture, poseResult);
-        debugView.texture = poseLandmark.inputTex;
+        // debugView.texture = poseLandmark.inputTex;
 
         landmarkResult = poseLandmark.GetResult();
 
@@ -262,10 +289,10 @@ public sealed class BlazePoseSample : MonoBehaviour
             cameraView.material = poseDetect.transformMat;
             cameraView.rectTransform.GetWorldCorners(rtCorners);
         }
-        if (debugView != null)
-        {
-            debugView.texture = poseLandmark.inputTex;
-        }
+        // if (debugView != null)
+        // {
+        //     debugView.texture = poseLandmark.inputTex;
+        // }
 
         // Generate poseResult from landmarkResult
         if (landmarkResult.score < 0.3f)
